@@ -1,0 +1,405 @@
+package Test;
+
+import javacard.framework.*;
+import javacard.security.*;
+import javacardx.crypto.*;
+
+public class Test extends Applet{
+
+private byte[] PLAINTEXT ;
+private ECPrivateKey objECDSAPriKey=null;   // Object for ECDSA Private Key
+private ECPublicKey key=null;    // Object for ECDSA Public Key
+private KeyPair objECDSAKeyPair=null;       // Object for ECDSA Key Pair
+private Signature objECDSASign=null;        // Object for ECDSA Signature
+
+final static short BAS =  0;
+
+private final static byte[] fp = new byte[] { 
+        (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, 
+        (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, 
+        (byte)0xFF, (byte)0xFE, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, 
+        (byte)0xFF, (byte)0xFF, (byte)0xFF };
+    private final static byte[] r = new byte[] {
+        (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, 
+        (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0x99, (byte)0xDE, 
+        (byte)0xF8, (byte)0x36, (byte)0x14, (byte)0x6B, (byte)0xC9, (byte)0xB1, (byte)0xB4, 
+        (byte)0xD2, (byte)0x28, (byte)0x31 };
+    private final static byte[] a = new byte[] {
+        (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, 
+        (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, 
+        (byte)0xFF, (byte)0xFE, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, 
+        (byte)0xFF, (byte)0xFF, (byte)0xFC };
+    private final static byte[] b = new byte[] {
+        (byte)0x64, (byte)0x21, (byte)0x05, (byte)0x19, (byte)0xE5, (byte)0x9C, (byte)0x80, 
+        (byte)0xE7, (byte)0x0F, (byte)0xA7, (byte)0xE9, (byte)0xAB, (byte)0x72, (byte)0x24, 
+        (byte)0x30, (byte)0x49, (byte)0xFE, (byte)0xB8, (byte)0xDE, (byte)0xEC, (byte)0xC1, 
+        (byte)0x46, (byte)0xB9, (byte)0xB1 };
+    private final static byte[] g = new byte[] {
+        (byte)0x04, (byte)0x18, (byte)0x8D, (byte)0xA8, (byte)0x0E, (byte)0xB0, (byte)0x30, 
+        (byte)0x90, (byte)0xF6, (byte)0x7C, (byte)0xBF, (byte)0x20, (byte)0xEB, (byte)0x43, 
+        (byte)0xA1, (byte)0x88, (byte)0x00, (byte)0xF4, (byte)0xFF, (byte)0x0A, (byte)0xFD, 
+        (byte)0x82, (byte)0xFF, (byte)0x10, (byte)0x12, (byte)0x07, (byte)0x19, (byte)0x2B, 
+        (byte)0x95, (byte)0xFF, (byte)0xC8, (byte)0xDA, (byte)0x78, (byte)0x63, (byte)0x10, 
+        (byte)0x11, (byte)0xED, (byte)0x6B, (byte)0x24, (byte)0xCD, (byte)0xD5, (byte)0x73, 
+        (byte)0xF9, (byte)0x77, (byte)0xA1, (byte)0x1E, (byte)0x79, (byte)0x48, (byte)0x11 }; //49
+     private final static short k = 1;  
+
+//------------------------------------------------------------------------
+public static void install(byte[] bArray, short bOffset, byte bLength){
+  new Test(bArray, bOffset, bLength);
+}
+
+private Test(byte bArray[], short bOffset, byte bLength){ 
+  PLAINTEXT = new byte[0x100] ; // Data file
+  Util.arrayFillNonAtomic(PLAINTEXT,  BAS, (short)0x100, (byte)0);
+  
+  try{
+
+  // Error position (6F00)
+  objECDSAKeyPair= new KeyPair(KeyPair.ALG_EC_FP, KeyBuilder.LENGTH_EC_FP_192);          // Error position (6F00)
+  }
+  catch(CryptoException c)
+  {
+  	short reason = c.getReason();
+  }
+  // Create Signature Object
+  objECDSASign = Signature.getInstance(Signature.ALG_ECDSA_SHA, false);
+
+  register();
+}
+
+//------------------------------------------------------------------------
+public void process(APDU apdu){
+  byte buf[] = apdu.getBuffer();
+
+  switch(buf[1])
+  {
+  case (byte)0xA4: break;
+
+  case (byte)0x46:
+  objECDSAKeyPair.genKeyPair();
+  objECDSAPriKey = (ECPrivateKey)objECDSAKeyPair.getPrivate();
+  key = (ECPublicKey)objECDSAKeyPair.getPublic();
+  
+   key.setFieldFP(fp, (short)0, (short)fp.length);
+        key.setR(r, (short)0, (short)r.length);
+        key.setA(a, (short)0, (short)a.length);
+        key.setB(b, (short)0, (short)b.length);
+        key.setG(g, (short)0, (short)g.length);
+        key.setK(k);
+        
+  break;
+
+  case (byte)0x2E:
+  short Le = apdu.setOutgoing();
+  short sSignLen=0 ;
+
+  // Init with Private Key
+  objECDSASign.init(objECDSAPriKey, Signature.MODE_SIGN);
+  //objECDSASign.init(objECDSAKeyPair.getPrivate(), Signature.MODE_SIGN);
+
+  // Sign Data
+  sSignLen = objECDSASign.sign(PLAINTEXT, BAS, Le, buf, BAS);
+
+  apdu.setOutgoingLength(sSignLen);
+  apdu.sendBytes(BAS, sSignLen);
+  break;
+
+  default:
+  ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
+  }
+
+  return;
+} 
+}
+
+
+
+package Sample;
+
+import javacard.framework.*;
+import javacard.security.ECPrivateKey;
+import javacard.security.ECPublicKey;
+import javacard.security.KeyBuilder;
+import javacard.security.*;
+import javacardx.crypto.*;
+
+public class ECCSample extends Applet
+{
+	private static final byte INS_ECC_GEN_KEYPAIR     	   = (byte)0x41;
+    private static final byte INS_ECC_GENA           	   = (byte)0x42;
+    private static final byte INS_ECC_GENP           	   = (byte)0x43;
+    private static final byte INS_ECC_GENS           	   = (byte)0x44;
+    private static final byte INS_ECC_GENW           	   = (byte)0x45;
+    private static final byte INS_ECC_SETS           	   = (byte)0x46;
+    private static final byte INS_ECC_SETW           	   = (byte)0x47;
+    private static final byte INS_ECC_SIGN                 = (byte)0x48;
+    private static final byte INS_ECC_VERIFY               = (byte)0x49;
+
+
+    private byte[] tempBuffer;
+
+    private byte[] flags;
+    private static final short FLAGS_SIZE = (short)5;
+    
+    private short eccKeyLen;
+    private Signature ecdsa;
+    private KeyPair eccKey;
+
+	public ECCSample()
+    {
+    	//Create a transient byte array to store the temporary data
+        tempBuffer = JCSystem.makeTransientByteArray((short)256, JCSystem.CLEAR_ON_DESELECT);
+        flags = JCSystem.makeTransientByteArray(FLAGS_SIZE, JCSystem.CLEAR_ON_DESELECT);
+
+        //Create a ECC(ALG_ECDSA_SHA) object instance
+        ecdsa = Signature.getInstance(Signature.ALG_ECDSA_SHA, false);
+
+        JCSystem.requestObjectDeletion();
+    }
+    
+	public static void install(byte[] bArray, short bOffset, byte bLength) 
+	{
+		new ECCSample().register(bArray, (short) (bOffset + 1), bArray[bOffset]);
+	}
+
+	public void process(APDU apdu)
+	{
+		if (selectingApplet())
+		{
+			return;
+		}
+
+		byte[] buf = apdu.getBuffer();
+		short len = apdu.setIncomingAndReceive();
+		switch (buf[ISO7816.OFFSET_INS])
+		{
+		case INS_ECC_GEN_KEYPAIR:
+        	// GEN_KEYPAIR
+        	GenEccKeyPair(apdu, len);
+        	break;
+        case INS_ECC_GENA:
+        	// ECC_GENA
+        	getEccKeyA(apdu, len);
+        	break;
+        case INS_ECC_GENP:
+        	// ECC_GENP
+        	getEccKeyP(apdu, len);
+        	break;
+        case INS_ECC_GENS:
+        	// ECC_GENS
+        	getEccKeyS(apdu, len);
+        	break;
+        case INS_ECC_GENW: 
+        	// ECC_GENW
+        	getEccKeyW(apdu, len);
+        	break;
+        case INS_ECC_SETS://PrivateKey
+        	// ECC_SETS
+        	setEccKeyS(apdu, len);
+        	break;
+        case INS_ECC_SETW://PublicKey
+        	// ECC_SETW
+        	setEccKeyW(apdu, len);
+        	break;
+        case INS_ECC_SIGN:
+        	// ECC_SIGN
+        	Ecc_Sign(apdu, len);
+        	break;
+        case INS_ECC_VERIFY:
+        	//ECC_VERIFY
+        	Ecc_Verify(apdu, len);
+        	break;
+		default:
+			ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
+		}
+	}
+	
+	//According to the different key length specified in the incoming APDU , generate ECC key pair and store in the  global variable 'eccKey'
+	private void GenEccKeyPair(APDU apdu, short len)
+    {
+        byte[] buffer = apdu.getBuffer();
+		short keyLen = (short)0;
+        switch (buffer[ISO7816.OFFSET_P1])
+        {
+        case (byte)0x01: // 192
+        	//Constructs a KeyPair instance for the specified algorithm and keylength;
+        	eccKey = new KeyPair(KeyPair.ALG_EC_FP, KeyBuilder.LENGTH_EC_FP_192);
+        	keyLen = (short)24;
+            break;
+        /*case (byte)0x02:
+        	//Here, the KeyBuilder.LENGTH_EC_FP_256 only be used in JavaCard API 3.0.4
+        	eccKey = new KeyPair(KeyPair.ALG_EC_FP, KeyBuilder.LENGTH_EC_FP_256);
+        	keyLen = (short)32;
+            break;
+        case (byte)0x03: // 384
+        	//Here, the KeyBuilder.LENGTH_EC_FP_384 only be used in JavaCard API 3.0.4
+        	eccKey = new KeyPair(KeyPair.ALG_EC_FP,KeyBuilder.LENGTH_EC_FP_384); 
+        	keyLen = (short)48;
+            break;*/
+        default:
+            ISOException.throwIt(ISO7816.SW_INCORRECT_P1P2);
+            break;
+        }
+        //(Re)Initializes the key objects encapsulated in this 'eccKey' KeyPair instance with new key values.
+		eccKey.genKeyPair();
+        eccKeyLen = keyLen;
+    }
+    
+	//Returns the first coefficient 'A' of the curve of the key.
+	private void getEccKeyA(APDU apdu, short len)
+    {
+        byte[] buffer = apdu.getBuffer();
+        ((ECPrivateKey)eccKey.getPrivate()).getA(buffer, (short)0);
+        apdu.setOutgoingAndSend((short)0, eccKeyLen);
+    }
+    
+    //Returns the field specification parameter value of the key.
+    private void getEccKeyP(APDU apdu, short len)
+    {
+        byte[] buffer = apdu.getBuffer();
+        ((ECPrivateKey)eccKey.getPrivate()).getField(buffer, (short)0);
+        apdu.setOutgoingAndSend((short)0, eccKeyLen);
+    }
+    
+    //Returns the coefficient 'S' of the curve of the key.
+    private void getEccKeyS(APDU apdu, short len)
+    {
+        byte[] buffer = apdu.getBuffer();
+        short length = ((ECPrivateKey)eccKey.getPrivate()).getS(buffer, (short)0);
+        apdu.setOutgoingAndSend((short)0, length);
+    }
+    
+    //Returns the coefficient 'W' of the curve of the key.
+    private void getEccKeyW(APDU apdu, short len)
+    {
+        byte[] buffer = apdu.getBuffer();
+        short length = ((ECPublicKey)eccKey.getPublic()).getW(buffer,(short)0);
+        apdu.setOutgoingAndSend((short)0, length);
+    }
+    
+    //Set the value of ECC private key(SetS)
+    private void setEccKeyS(APDU apdu, short len)
+    {
+        byte[] buffer = apdu.getBuffer();
+		switch (buffer[ISO7816.OFFSET_P1])
+        {        	
+        case (byte)0x01: // 192 key
+        	if (len != 24)
+            {
+                ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+            }
+            eccKeyLen = 24;
+            //Constructs a KeyPai instance for the ALG_EC_FP algorithm and keylength is 192;
+            eccKey = new KeyPair(KeyPair.ALG_EC_FP, KeyBuilder.LENGTH_EC_FP_192);
+            break;
+     /*   case (byte)0x02:
+        	if (len != 32)
+            {
+                ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+            }
+            eccKeyLen = 32;
+            //Constructs a KeyPai instance for the ALG_EC_FP algorithm and keylength is 256;
+            //Here, the KeyBuilder.LENGTH_EC_FP_256 only be used in JavaCard API 3.0.4        	
+            eccKey = new KeyPair(KeyPair.ALG_EC_FP, KeyBuilder.LENGTH_EC_FP_256);
+            break;
+        case (byte)0x03: // 384 key
+        	if (len != 48)
+            {
+                ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+            }
+            eccKeyLen = 48;
+            //Constructs a KeyPai instance for the ALG_EC_FP algorithm and keylength is 384;
+            //Here, the KeyBuilder.LENGTH_EC_FP_384 only be used in JavaCard API 3.0.4 
+            eccKey = new KeyPair(KeyPair.ALG_EC_FP,KeyBuilder.LENGTH_EC_FP_384); 
+            break;*/
+        default:
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+            break;
+        }
+        //In tempBuffer, the offset from 0 to 1 positions stored ECC private key, including 0 to 0 store the private key length, 130 to 255 store the private key data
+        Util.setShort(tempBuffer, (short)0, len);
+        Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, tempBuffer, (short)2, len);
+    }
+    //Set the value of ECC public key(SetW)
+    private void setEccKeyW(APDU apdu, short len)
+    {
+        byte[] buffer = apdu.getBuffer();
+		switch (buffer[ISO7816.OFFSET_P1])
+        {
+        case (byte)0x01: // 192 key
+        	if (len != 24*2+1)
+            {
+                ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+            }
+        	eccKeyLen = 24;
+        	//Constructs a KeyPair instance for the ALG_EC_FP algorithm and keylength is 192;
+        	eccKey = new KeyPair(KeyPair.ALG_EC_FP, KeyBuilder.LENGTH_EC_FP_192);
+            break;
+       /* case (byte)0x02:
+        	if (len != 32*2+1)
+            {
+                ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+            }
+        	eccKeyLen = 32;
+        	//Constructs a KeyPai instance for the ALG_EC_FP algorithm and keylength is 256;
+        	//Here, the KeyBuilder.LENGTH_EC_FP_256 only be used in JavaCard API 3.0.4 
+        	eccKey = new KeyPair(KeyPair.ALG_EC_FP, KeyBuilder.LENGTH_EC_FP_256);
+            break;
+        case (byte)0x03: // 384 key
+        	if (len != 48*2+1)
+            {
+                ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+            }
+            eccKeyLen = 48;
+            //Constructs a KeyPai instance for the ALG_EC_FP algorithm and keylength is 384;
+            //Here, the KeyBuilder.LENGTH_EC_FP_384 only be used in JavaCard API 3.0.4 
+            eccKey = new KeyPair(KeyPair.ALG_EC_FP, KeyBuilder.LENGTH_EC_FP_384); 
+            break;*/
+        default:
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+            break;
+        }
+        //In tempBuffer, the offset from 128 to 255 positions stored ECC public key, including 128 to 129 store the public key length, 130 to 255 store the private key data
+        Util.setShort(tempBuffer, (short)128, len);
+        Util.arrayCopyNonAtomic(buffer, ISO7816.OFFSET_CDATA, tempBuffer, (short)130, len);
+    }
+    
+    //ECC signature
+    private void Ecc_Sign(APDU apdu, short len)
+    {
+        byte[] buffer = apdu.getBuffer();
+        //(Re)Initializes the key objects encapsulated in this KeyPair instance with new key values.
+		eccKey.genKeyPair();
+		short eccPriKeyLen = Util.getShort(tempBuffer, (short)0);
+		//Returns a reference to the private key component of this  ECC KeyPair object.
+		((ECPrivateKey)eccKey.getPrivate()).setS(tempBuffer, (short)2, eccPriKeyLen);
+		//Initializes the Signature object with the ecdsa Key
+		ecdsa.init(eccKey.getPrivate(), Signature.MODE_SIGN);
+		//Generates the signature of all input data.
+        short lenTmp = ecdsa.sign(buffer, ISO7816.OFFSET_CDATA, len, buffer, (short)0);
+
+        apdu.setOutgoingAndSend((short)0, lenTmp);
+    }
+    
+    //Verify the ECC signature, the format of APDU data field is : the signature data and the data to be verified
+    private void Ecc_Verify(APDU apdu, short len)
+    {
+        byte[] buffer = apdu.getBuffer();  
+        short signLen = buffer[ISO7816.OFFSET_P1];
+        //(Re)Initializes the key objects encapsulated in 'eccKey' KeyPair instance with new key values. 
+        eccKey.genKeyPair();
+        short eccPubKeyLen = Util.getShort(tempBuffer, (short)128);
+        // Sets the point of the curve comprising the public key.
+        ((ECPublicKey)eccKey.getPublic()).setW(tempBuffer, (short)130, eccPubKeyLen);
+        short plainLen = (short)(len - signLen);
+        short tmpOff = (short)(ISO7816.OFFSET_CDATA + signLen);
+        //Initializes the Signature object with the appropriate Key
+		ecdsa.init(eccKey.getPublic(), Signature.MODE_VERIFY);
+		//Verify the signature of input data against the passed in ECC signature.
+        boolean ret = ecdsa.verify(buffer, (short)tmpOff, plainLen, buffer, ISO7816.OFFSET_CDATA, signLen);
+        buffer[(short)0] = ret ? (byte)1 : (byte)0;
+        apdu.setOutgoingAndSend((short)0, (short)1);
+    }
+    
+}
